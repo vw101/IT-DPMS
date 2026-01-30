@@ -1,0 +1,119 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider     = "mysql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
+}
+
+model User {
+  id              Int             @id @default(autoincrement())
+  email           String          @unique
+  name            String
+  password        String
+  avatar          String?
+  title           String?
+  isActive        Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  managedProjects Project[]       @relation("ProjectManager")
+  assignedTasks   Task[]
+  memberships     ProjectMember[]
+  activityLogs    ActivityLog[]
+  taskOwners      TaskOwner[]
+
+  @@index([email])
+}
+
+model Project {
+  id          Int             @id @default(autoincrement())
+  name        String
+  description String?         @db.Text
+  projectType String          @default("Change Requirement") // 'Change Requirement' | 'Support'
+  budget      Decimal         @default(0.00) @db.Decimal(12, 2)
+  currency    String          @default("USD")
+  status      String          @default("Pending")
+  progress    Int             @default(0)
+  pmId        Int
+  deletedAt   DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  pm          User            @relation("ProjectManager", fields: [pmId], references: [id])
+  members     ProjectMember[]
+  tasks       Task[]
+  logs        ActivityLog[]
+
+  @@index([pmId])
+  @@index([status])
+}
+
+model ProjectMember {
+  id        Int      @id @default(autoincrement())
+  projectId Int
+  userId    Int
+  role      String   @default("Member")
+  joinedAt  DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@index([projectId])
+}
+
+model Task {
+  id          Int         @id @default(autoincrement())
+  name        String
+  description String?     @db.Text // optional, max 500 chars enforced in app
+  remark      String?     @db.Text // 备注
+  status      String      @default("Pending")
+  priority    String      @default("Medium")
+  startDate   DateTime?
+  dueDate    DateTime?
+  order         Float       @default(0)
+  devManDays    Float       @default(0) // 开发人天，支持小数 e.g. 0.5
+  testManDays   Float       @default(0) // 测试人天，支持小数 e.g. 0.5
+  projectId     Int
+  ownerId       Int?
+  parentId      Int?
+  createdAt     DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  owner       User?       @relation(fields: [ownerId], references: [id])
+  parent      Task?       @relation("SubTasks", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children    Task[]      @relation("SubTasks")
+  owners      TaskOwner[]
+
+  @@index([projectId])
+  @@index([ownerId])
+  @@index([parentId])
+}
+
+model TaskOwner {
+  id        Int      @id @default(autoincrement())
+  taskId    Int
+  userId    Int
+  createdAt DateTime @default(now())
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@index([taskId])
+  @@index([userId])
+}
+
+model ActivityLog {
+  id        Int      @id @default(autoincrement())
+  action    String
+  details   String?  @db.Text
+  userId    Int
+  projectId Int?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([createdAt])
+}
